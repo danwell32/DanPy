@@ -140,44 +140,31 @@ def train_and_test_svm_model(samples, labels, kernel, C=1., gamma=None, coef0=No
 #-------------------------------------------------------------------------------------------------------------------#
 
 #-------------------------------------------------------------------------------------------------------------------#
-def reduc_energy_resol(spectra, a, b, new_resol, old_resol):
+def reduce_energy_resolution(spectra, original_axis, new_axis):
     """
-    Reduce la resolución energética de un conjunto de espectros.
+    Reduce the energy resolution of the input spectra by interpolating the
+    data onto a new axis.
     
-    Parameters:
-    -----------
-    spectra: numpy array.
-        Espectro inicial, se espera que tenga forma ([muestras, características]).
-    a: float.
-        Energía de inicio.
-    b: float.
-        Energía final.
-    new_resol: float.
-        Nueva resolución energética.
-    old_resol: float.
-        Resolución energética antigua.
-    
-    Returns:
-    --------
-    spectra_data: numpy array.
-        Espectro con la nueva resolución energética.
+    Parameters
+    ----------
+    spectra : array-like
+        Input array containing spectra data.
+    original_axis : array-like
+        Original energy axis of the spectra.
+    new_axis : array-like
+        New energy axis onto which the spectra will be interpolated.
+        
+    Returns
+    -------
+    spectra_data : ndarray
+        Array containing the spectra data with reduced energy resolution.
     """
+    assert spectra.shape[-1] == len(original_axis)
     end_spectra = []
-    
-    # Genera los nuevos y antiguos ejes de energía
-    new_energy_axis = np.linspace(a, b, num=(b - a) // new_resol)
-    old_energy_axis = np.linspace(a, b, num=(b - a) // old_resol
-    
-    # Interpola los espectros
     spec_norm = np.array(spectra)
     for i in range(spec_norm.shape[0]):
-        if new_resol > old_resol:
-            end_spectra.append(np.interp(new_energy_axis, old_energy_axis, spec_norm[i]))
-        else:
-            end_spectra.append(np.interp(old_energy_axis, new_energy_axis, spec_norm[i]))
-    
+        end_spectra.append(np.interp(x=new_axis, xp=original_axis, fp=spec_norm[i]))
     spectra_data = np.array(end_spectra)
-    
     return spectra_data
 #-------------------------------------------------------------------------------------------------------------------#
 
