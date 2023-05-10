@@ -269,14 +269,7 @@ class DGAN_3():
         data = tf.convert_to_tensor(data)
         seed = tf.random.normal([self.num_examples_to_generate, self.latent_dim])
         evaluation = self.batch_size
-        shape_eval = tf.random.uniform((evaluation,))
-        
-        ##--------------------------------------##
-        # Soft labels to evaluate fake & real data:
-        #y_real_eval = tf.ones_like((shape_eval))*.9
-        #y_fake_eval = tf.zeros_like((shape_eval))
-        ##--------------------------------------##
-        
+
         #Stopping Criterias:
         fid_tol = stopping_criterias['FID_tol'];
         correlation_tol = stopping_criterias['correlation_tol'];
