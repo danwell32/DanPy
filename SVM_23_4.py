@@ -5,6 +5,44 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from matplotlib_scalebar.scalebar import ScaleBar
 
+#-------------------------------------------------------------------------------------------------------------------#
+def kmeans_clustering(matrix, n_cluster, norma='l2'):
+    '''
+    Función que aplica kmeans clustering en la imagen de espectros.
+    
+    Parameters:
+    -----------
+    matrix: numpy array. (x,y,eloss)
+        Imagen de espectros.
+    n_cluster: int.
+        Número de clusters.
+    norma: string, optional. (default='l2')
+        Normalización que queremos aplicar. Opciones: ‘l1’, ‘l2’, ‘max’, 'None'.
+        
+    Returns:
+    --------
+    labels: numpy array. (x,y)
+        Matriz con las etiquetas de cada cluster. 
+    centres: numpy array. (n_cluster,eloss)
+        Matriz que contiene los centroides de cada cluster identificado (estos centroides provienen de los espectros normalizados). 
+    '''
+    allowed_norms = ['l1', 'l2', 'max', None]
+    if norma not in allowed_norms:
+        raise ValueError(f"norma debe ser uno de {allowed_norms}")
+        
+    matrix_norm = matrix.copy()
+    matrix_norm = matrix_norm.reshape(matrix.shape[0]*matrix.shape[1], matrix.shape[-1])
+    if norma is None: 
+        sclust_norm = matrix_norm
+    else:
+        sclust_norm, _ = normalize(matrix_norm,norm=norma,axis=1,return_norm=True)
+    kmeans = KMeans(n_clusters=n_cluster, tol=1e-9, max_iter=700)
+    fitted = kmeans.fit(sclust_norm)
+    centres = fitted.cluster_centers_
+    labels = fitted.labels_.reshape(matrix.shape[:-1])
+    return labels, centres
+#-------------------------------------------------------------------------------------------------------------------#
+
 def reduce_energy_resolution(spectra, original_axis, new_axis):
     """
     Reduce the energy resolution of the input spectra by interpolating the
@@ -165,7 +203,7 @@ def create_displaced_spectra(X, Y, num_displacements=100, samples_per_displaceme
 
     return X_, labels_
 
-def classify_spectrum(spectra, model, ref_spectra, probability=True, normalize=True, background=None, crop=None, figure_name=None):
+def classify_SI(spectra, model, ref_spectra, probability=True, normalize=True, background=None, crop=None, figure_name=None):
     """
     Classify a spectrum image without background (all the points contain sample) using SVM.
     It will return the show the plots with the classification results. 
@@ -315,6 +353,260 @@ def classify_spectrum(spectra, model, ref_spectra, probability=True, normalize=T
     
     #----------------------------Binary clasification-----------------------------------#
     clasificacion_1 = clasificacion_1.reshape(spectrum_data.shape[0],spectrum_data.shape[1])
+    #-----------------------------------------------------------------------------------#
+    
+    #-----------------------------------------------------------------------------------#        
+    fig1 = plt.figure(dpi=200)
+    im = plt.imshow(clasificacion_1, cmap=custom_cmap, norm=custom_norm)
+    cbar = plt.colorbar(im,label='Classes')
+    plt.title('Binary classifier')
+    cbar.set_ticks(np.arange(0,num_classes))
+    cbar.set_ticklabels(np.arange(0,num_classes))
+    plt.xticks([])
+    plt.yticks([])
+    scale_length = spectrum_image.axes_manager['x'].scale
+    scale_unit = spectrum_image.axes_manager['x'].units
+    #sb = ScaleBar(scale_length, scale_unit, box_alpha=0, color='yellow', location=0,length_fraction=0.4,height_fraction=0.5,width_fraction=0.015,scale_loc='top',font_properties={'size':14})
+    #plt.gca().add_artist(sb)
+    #-----------------------------------------------------------------------------------#   
+    
+    #-----------------------------------------------------------------------------------#
+    num_classes = model.classes_.shape[0]
+    mean_spectra = np.zeros((num_classes, spectrum_data.shape[-1]))
+
+    for i in range(num_classes):
+        indices = np.where(clasificacion_1 == i)
+        class_spectra = spectrum_data[indices[0], indices[1]]
+        mean_spectra[i] = np.mean(class_spectra, axis=0)
+    #-----------------------------------------------------------------------------------#  
+    fig2 = plt.figure(dpi=300)
+    for i in range(0,num_classes):
+        plt.plot(Eaxis_ref,mean_spectra[i],label='{}'.format(i),linewidth=0.5,alpha=0.8)
+    #plt.xlim(690.,750.)
+    plt.title('Average spectrum of each class')
+    plt.legend(title='Class') 
+    
+    #-----------------------------------------------------------------------------------#
+    if figure_name is not None:
+        if probability:
+            cont = 0
+            for figure in fig_:
+                figure.savefig(figure_name + '_probs{}'.format(cont),dpi=500)
+                cont += 1
+        fig1.savefig(figure_name + '_binary',dpi=500)
+        fig2.savefig(figure_name + '_centroids',dpi=500)
+    #----------------------------------------------------------------------------------------------------------------#
+    return None
+
+def classify_SI_back(spectra, 
+                     model, 
+                     ref_spectra, 
+                     probability=True, 
+                     normalize=True, 
+                     background=None, 
+                     crop=None, 
+                     back_point=(0,0),
+                     figure_name=None):
+    """
+    Classify a spectrum image with background (no sample region) using SVM or ANN.
+    It will return the show the plots with the classification results. 
+
+    Parameters:
+    - spectra: filename or EELS hyperspy spectrum image
+    - model: sklearn SVM model or neural network
+    - ref_spectra: reference spectra
+    - probability: boolean, optional (default=True)
+    - normalize: boolean, optional (default=True)
+    - background: tuple, optional (default=None)
+    - crop: tuple, optional (default=None)
+    - figure_name: string, optional (default=None)
+
+    Returns:
+    - None
+    """
+
+    # Check if the input is a file name or a hyperspy spectrum image
+    if type(spectra) == str:
+        spectrum_image = hs.load(spectra)
+    elif type(spectra) == hs.signals.EELSSpectrum:
+        spectrum_image = spectra
+    else:
+        raise ValueError("No valid data provided.")
+
+    # Remove background
+    if background is not None:
+        a, b = background
+        spectrum_image = spectrum_image.remove_background((a, b))
+
+    # Crop the energy range
+    if crop == None:
+        c = spectrum_image.axes_manager[-1].axis[0]
+        d = spectrum_image.axes_manager[-1].axis[-1]
+        print('No crop applied.')
+    else: 
+        c, d = crop
+        spectrum_image = spectrum_image.isig[c:d]
+
+    # Convert the spectrum to a numpy array
+    spectrum_data = spectrum_image.data
+
+    # Normalize the data if requested
+    if normalize:
+        spectrum_data_ = spectrum_data.copy()
+        spectrum_data_ = spectrum_data_.reshape((spectrum_data.shape[0]*spectrum_data.shape[1],spectrum_data.shape[-1])) #reshape
+        spectrum_data_, _ = sklearn.preprocessing.normalize(spectrum_data_,norm = 'max',return_norm=True) #normalize
+        spectrum_data_ = spectrum_data_.reshape((spectrum_data.shape[0],spectrum_data.shape[1],spectrum_data.shape[-1])) #reshape
+    else:
+        spectrum_data_ = spectrum_data.copy()
+        
+    # Check if the dimensions of the input spectrum match the training data dimensions
+    if spectrum_data.shape[-1] < ref_spectra.shape[-1]:
+        print(f"The dimensions of the SI provided ({spectrum_data.shape[-1]}) is smaller than the training data ({ref_spectra.shape[-1]}).")
+        print("It is recommended to reduce the training data resolution and not the evaluated Spectrum Image.")
+    
+    #----------------------------------------------------------------------#    
+    #eje de energias de los espectros facilitados:
+    Eaxis_si = spectrum_image.axes_manager[-1].axis
+    #eje de energias de los datos de referencia: 
+    Eaxis_ref = np.arange(c,d,(d-c)/ref_spectra.shape[-1])
+    
+    if Eaxis_si.shape[-1] != Eaxis_ref.shape[-1]:
+        spectrum_data_ = spectrum_data_.reshape((spectrum_data.shape[0]*spectrum_data.shape[1],spectrum_data.shape[-1])) #reshape
+        spectrum_data_ = reduc_energy_resol(spectrum_data_,eje_original=Eaxis_si,eje_nuevo=Eaxis_ref)
+        spectrum_data_ = spectrum_data_.reshape((spectrum_data.shape[0],spectrum_data.shape[1],spectrum_data_.shape[-1])) #reshape
+    else: 
+        pass
+    
+    #----------------------------------------------------------------------#
+    #Plot the spectra:
+    plt.figure(dpi=150)
+    plt.title('Comparative of training spectra and SI spectra')
+    idx = np.random.randint(0,ref_spectra.shape[0])
+    plt.plot(Eaxis_ref,ref_spectra[idx],linewidth=0.5,color='red')
+    idx = np.random.randint(0,ref_spectra.shape[0])
+    plt.plot(Eaxis_ref,ref_spectra[idx],linewidth=0.5,color='blue')
+    idx = np.random.randint(0,spectrum_data_.shape[0]); idy = np.random.randint(0,spectrum_data.shape[1])
+    plt.plot(Eaxis_ref,spectrum_data_[idx][idy],linewidth=0.5,color='fuchsia',label='x: {}, y: {}'.format(idx,idy))
+    idx = np.random.randint(0,spectrum_data_.shape[0]); idy = np.random.randint(0,spectrum_data.shape[1])
+    plt.plot(Eaxis_ref,spectrum_data_[idx][idy],linewidth=0.5,color='purple',label='x: {}, y: {}'.format(idx,idy))
+    plt.legend()
+    plt.show()
+    #-----------------------------------------------------------------------------------#
+    
+    #--------------------------Clustering for background--------------------------------#    
+    labels, etiquetas = kmeans_clustering(spectrum_data_,n_cluster=2,norma=None)
+    
+    #Comprovar que el clustering funcione bien: 
+    _, cuentas = np.unique(labels,return_counts=True)
+    for i in cuentas: 
+        if i < (labels.shape[0]*labels.shape[1])*0.05:
+            plt.figure(dpi=100)
+            plt.title('Clustering for background')
+            plt.imshow(labels)
+            plt.show()
+            plt.figure(dpi=100)
+            plt.title('Clustering for centroids')
+            plt.plot(etiquetas[0])
+            plt.plot(etiquetas[1])
+            plt.show()    
+            raise ValueError("The clustering has not been able to separate the background from the signal.")
+        else: 
+            pass
+    
+    #Vamos a comparar con el punto de fondo: 
+    x_back, y_back = back_point
+    #value es el indicador del label del background
+    if labels[x_back][y_back] == 0:
+        value = 1
+    else:
+        value = 0
+    #-----------------------------------------------------------------------------------#
+
+    #-----------------------------------------------------------------------------------#
+    spectrum_labeled = spectrum_data_.reshape(spectrum_data.shape[0]*spectrum_data.shape[1],spectrum_data_.shape[-1])
+    spectrum_labeled_ = spectrum_data_[labels==value]
+    #-----------------------------------------------------------------------------------#    
+    
+    #----------------------------Clasificacion------------------------------------------#
+    # Clasificador probabilistico:
+    if probability:
+        clasificacion_0 = model.predict_proba(spectrum_labeled)
+    # Clasificador binario: 
+    clasificacion_1 = model.predict(spectrum_labeled_)
+    num_classes = model.classes_.shape[0]
+
+    #-----------------Ajustar clasificacion binaria al background-----------------------#
+    labels_1 = labels.copy()
+    count = 0 
+    for x in range(labels.shape[0]):
+        for y in range(labels.shape[1]):
+            if labels_1[x][y] == value:
+                labels_1[x][y] = clasificacion_1[count]
+                count+=1
+            else: 
+                labels_1[x][y] = -1
+    #-----------------------------------------------------------------------------------#
+    
+    #---------------------------------Color_map-----------------------------------------#
+    cmap_original = plt.get_cmap("plasma_r")
+    custom_cmap = cmap_original.copy()
+    # Define el color negro para valores por debajo del limite inferior
+    custom_cmap.set_under('black')
+    custom_norm = mcolors.Normalize(vmin=-0.01, vmax=num_classes-1)
+    custom_norm_ = mcolors.Normalize(vmin=-0.01, vmax=1.)
+    #-----------------------------------------------------------------------------------#
+    
+    fig_ = []
+    #-----------------------------------------------------------------------------------#
+    if probability: 
+        clasificacion_0 = clasificacion_0.reshape(spectrum_data.shape[0],spectrum_data.shape[1],clasificacion_0.shape[-1])
+        clasificacion_0_ = clasificacion_0.copy()
+        for x in range(labels.shape[0]):
+            for y in range(labels.shape[1]):
+                if labels[x][y] == value:
+                    pass
+                else:
+                    clasificacion_0_[x,y,:] = -1
+        
+        for i in range(num_classes):
+        # Calcular el valor de las classes ponderado
+            fig = plt.figure(dpi=200)
+            fig_.append(fig)
+            im = plt.imshow(clasificacion_0_[:,:,i], cmap=custom_cmap, norm=custom_norm_)
+            cbar = plt.colorbar(im, label='Probability')
+            plt.title('Class_{}'.format(i))
+            cbar.set_ticks(np.arange(0,1.05,0.25))
+            cbar.set_ticklabels(np.arange(0,1.05,0.25))
+            plt.xticks([])
+            plt.yticks([])
+            scale_length = spectrum_image.axes_manager['x'].scale
+            scale_unit = spectrum_image.axes_manager['x'].units
+            #sb = ScaleBar(scale_length, scale_unit, box_alpha=0, color='yellow', location=0,length_fraction=0.4,height_fraction=0.5,width_fraction=0.015,scale_loc='top',font_properties={'size':14})
+            #plt.gca().add_artist(sb)
+        """
+        #Code to plot the oxidation state: (have to be adapted to the oxide)
+        classes_value = np.sum([(i + 2)*clasificacion_0[..., i] for i in range(num_classes)], axis=0)
+        custom_norm_ox = mcolors.Normalize(vmin=2, vmax=3)
+        # Calcular el valor de las classes ponderado
+        fig = plt.figure(dpi=200)
+        fig_.append(fig)
+        im = plt.imshow(classes_value, cmap=custom_cmap, norm=custom_norm_ox)
+        cbar = plt.colorbar(im, label='Oxidation State')
+        #plt.title('Class_{}'.format(i))
+        cbar.set_ticks(np.arange(2.,3.5,1.))
+        cbar.set_ticklabels(np.arange(2,3.5,1))
+        plt.xticks([])
+        plt.yticks([])
+        scale_length = spectrum_image.axes_manager['x'].scale
+        scale_unit = spectrum_image.axes_manager['x'].units
+        #sb = ScaleBar(scale_length, scale_unit, box_alpha=0, color='yellow', location=0,length_fraction=0.4,height_fraction=0.5,width_fraction=0.015,scale_loc='top',font_properties={'size':14})
+        #plt.gca().add_artist(sb)
+        """
+    #-----------------------------------------------------------------------------------#
+    
+    #----------------------------Binary clasification-----------------------------------#
+    #clasificacion_1 = clasificacion_1.reshape(spectrum_data.shape[0],spectrum_data.shape[1])
+    clasificacion_1 = labels_1
     #-----------------------------------------------------------------------------------#
     
     #-----------------------------------------------------------------------------------#        
