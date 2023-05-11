@@ -70,33 +70,6 @@ def reduce_energy_resolution(spectra, original_axis, new_axis):
     spectra_data = np.array(end_spectra)
     return spectra_data
 
-def reduce_energy_resolution(spectra, original_axis, new_axis):
-    """
-    Reduce the energy resolution of the input spectra by interpolating the
-    data onto a new axis.
-    
-    Parameters
-    ----------
-    spectra : array-like
-        Input array containing spectra data.
-    original_axis : array-like
-        Original energy axis of the spectra.
-    new_axis : array-like
-        New energy axis onto which the spectra will be interpolated.
-        
-    Returns
-    -------
-    spectra_data : ndarray
-        Array containing the spectra data with reduced energy resolution.
-    """
-    assert spectra.shape[-1] == len(original_axis)
-    end_spectra = []
-    spec_norm = np.array(spectra)
-    for i in range(spec_norm.shape[0]):
-        end_spectra.append(np.interp(x=new_axis, xp=original_axis, fp=spec_norm[i]))
-    spectra_data = np.array(end_spectra)
-    return spectra_data
-
 def translation(inputs, translation):
     """
     Apply translations on NumPy arrays.
@@ -269,7 +242,7 @@ def classify_SI(spectra, model, ref_spectra, probability=True, normalize=True, b
     
     if Eaxis_si.shape[-1] != Eaxis_ref.shape[-1]:
         spectrum_data_ = spectrum_data_.reshape((spectrum_data.shape[0]*spectrum_data.shape[1],spectrum_data.shape[-1])) #reshape
-        spectrum_data_ = reduc_energy_resol(spectrum_data_,eje_original=Eaxis_si,eje_nuevo=Eaxis_ref)
+        spectrum_data_ = reduce_energy_resolution(spectrum_data_,eje_original=Eaxis_si,eje_nuevo=Eaxis_ref)
         spectrum_data_ = spectrum_data_.reshape((spectrum_data.shape[0],spectrum_data.shape[1],spectrum_data_.shape[-1])) #reshape
     else: 
         pass
@@ -472,7 +445,7 @@ def classify_SI_back(spectra,
     
     if Eaxis_si.shape[-1] != Eaxis_ref.shape[-1]:
         spectrum_data_ = spectrum_data_.reshape((spectrum_data.shape[0]*spectrum_data.shape[1],spectrum_data.shape[-1])) #reshape
-        spectrum_data_ = reduc_energy_resol(spectrum_data_,eje_original=Eaxis_si,eje_nuevo=Eaxis_ref)
+        spectrum_data_ = reduce_energy_resolution(spectrum_data_,eje_original=Eaxis_si,eje_nuevo=Eaxis_ref)
         spectrum_data_ = spectrum_data_.reshape((spectrum_data.shape[0],spectrum_data.shape[1],spectrum_data_.shape[-1])) #reshape
     else: 
         pass
@@ -555,7 +528,7 @@ def classify_SI_back(spectra,
     custom_norm = mcolors.Normalize(vmin=-0.01, vmax=num_classes-1)
     custom_norm_ = mcolors.Normalize(vmin=-0.01, vmax=1.)
     #-----------------------------------------------------------------------------------#
-    
+
     fig_ = []
     #-----------------------------------------------------------------------------------#
     if probability: 
