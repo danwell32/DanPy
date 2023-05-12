@@ -43,7 +43,7 @@ def kmeans_clustering(matrix, n_cluster, norma='l2'):
     n_cluster: int.
         Número de clusters.
     norma: string, optional. (default='l2')
-        Normalización que queremos aplicar. Opciones: ‘l1’, ‘l2’, ‘max’, 'None'.
+        Normalización que queremos aplicar. Opciones: ‘l1’, ‘l2’, ‘max’ or None.
         
     Returns:
     --------
@@ -347,7 +347,7 @@ def get_cmap(labels, noise = 'grey',paleta = 'Spectral'):
             #It is unlikely that this would go beyond 256
             pal = list(palettes.all_palettes['Turbo'][256])
             if len(np.unique(labels)) > 256:
-                raise Exception('Too many labels.. check if the clustering is well done')
+                raise Exception('Too many labels, check if the clustering is well done.')
             else:
                 nlabs = len(np.unique(labels))
                 cmap_db = [el[0] for el in np.array_split(pal,nlabs)]
