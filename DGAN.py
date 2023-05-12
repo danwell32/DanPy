@@ -11,7 +11,7 @@ from keras.layers import Flatten, Dense, GaussianNoise, Input, Concatenate, Leak
 from gan_layers import PoisonNoise, Translation, MinibatchDiscrimination
 
 #ajkshdglsdhabhksdsda
-
+#COMO ESTO NO FUNCIONE ME MATO 
 # En esta version el generador puede segmentar el espectro en trozos iguales. 
 class DGAN_3():
 
