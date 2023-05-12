@@ -10,7 +10,7 @@ import tensorflow as tf
 from keras.layers import Flatten, Dense, GaussianNoise, Input, Concatenate, LeakyReLU, Dropout
 from gan_layers import PoisonNoise, Translation, MinibatchDiscrimination
 
-
+#hello world
 # En esta version el generador puede segmentar el espectro en trozos iguales. 
 class DGAN_3():
 
