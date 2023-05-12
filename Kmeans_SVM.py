@@ -5,6 +5,8 @@ from time import time
 #Import copy: 
 import copy as cp
 
+#holaaaaaaaa
+
 #Sklearn: 
 import sklearn
 from sklearn.preprocessing import normalize
