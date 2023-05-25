@@ -70,6 +70,117 @@ def kmeans_clustering(matrix, n_cluster, norma='l2'):
 #-------------------------------------------------------------------------------------------------------------------#
 
 #-------------------------------------------------------------------------------------------------------------------#
+def translation(inputs, translation):
+    """
+    Apply translations on 1D NumPy arrays.
+    
+    Parameters
+    ----------
+    inputs : array-like
+        Input array to apply translation on.
+    translation : int
+        Translation value to apply.
+        
+    Returns
+    -------
+    ndarray
+        Translated input array.
+    """
+    inputs = np.asarray(inputs, dtype=np.float64)
+    trans = int(translation)
+    n_features = inputs.shape[-1]
+
+    val = np.random.randint(1, 5)
+    if val % 2 == 0:  # Shift to the left.
+        inputs_initial = inputs[:, trans:n_features]
+        final = inputs[:, n_features-trans:n_features]
+        return np.concatenate((inputs_initial, final), axis=1)
+    else:  # Shift to the right.
+        inputs_final = inputs[:, 0:n_features-trans]
+        initial = inputs[:, 0:trans]
+        return np.concatenate((initial, inputs_final), axis=1)
+
+def displace_spectra(x, num_displacements, samples_per_displacement, max_displacement):
+    """
+    Displace spectra by applying translations on the input array.
+    
+    Parameters
+    ----------
+    x : array-like
+        Input array to displace.
+    num_displacements : int
+        Number of displacements to perform.
+    samples_per_displacement : int
+        Number of samples for each displacement.
+    max_displacement : int
+        Maximum displacement value.
+        
+    Returns
+    -------
+    ndarray
+        Displaced input array.
+    """
+    x_dis = []
+    for i in range(num_displacements):
+        val = np.random.randint(1, max_displacement)
+        idx = np.random.randint(0, x.shape[0], samples_per_displacement)
+        x_dis.append(translation(x[idx], val))
+    x_dis = np.array(x_dis).reshape(num_displacements * samples_per_displacement, x.shape[-1])
+    return x_dis
+#-------------------------------------------------------------------------------------------------------------------#
+
+#-------------------------------------------------------------------------------------------------------------------#
+def create_displaced_dataset(X, Y, num_displacements=100, samples_per_displacement=10, max_displacement=10):
+    """
+    Create displaced spectra dataset by applying translations on the input arrays.
+    
+    Parameters
+    ----------
+    X : array-like
+        Input array containing x data.
+    Y : array-like
+        Input array containing y data.
+    num_displacements : int, optional
+        Number of displacements to perform, by default 100.
+    samples_per_displacement : int, optional
+        Number of samples for each displacement, by default 10.
+    max_displacement : int, optional
+        Maximum displacement value, by default 10.
+        
+    Returns
+    -------
+    X_ : ndarray
+        Concatenated array of original x data and displaced x data.
+    labels_ : ndarray
+        Concatenated array of original y data and displaced y data.
+    """
+    x = np.array(X)
+    y = np.array(Y)
+
+    unique_labels = np.unique(y)
+    
+    x_dis_list = []
+    labels_dis_list = []
+    
+    for label in unique_labels:
+        x_label = x[y == label]
+        
+        x_label_dis = displace_spectra(x_label, num_displacements, samples_per_displacement, max_displacement)
+        x_dis_list.append(x_label_dis)
+        
+        labels_dis_list.append(np.full((num_displacements * samples_per_displacement,), label))
+
+    x_dis = np.concatenate(x_dis_list, axis=0)
+    labels_dis = np.concatenate(labels_dis_list, axis=0)
+
+    X_ = np.concatenate((x, x_dis), axis=0)
+    labels_ = np.concatenate((y, labels_dis), axis=0)
+
+    return X_, labels_
+#-------------------------------------------------------------------------------------------------------------------#
+
+
+#-------------------------------------------------------------------------------------------------------------------#
 def train_and_test_svm_model(samples, labels, kernel, C=1., gamma=None, coef0=None, test_size=0.35, cv=10, probability=True):
     '''
     Entrena y evalúa un modelo de soft-margin SVM con los parámetros proporcionados.
@@ -668,9 +779,6 @@ def identify_eels_v2(spectra, model, ref_spectra, probability=False, normalize=T
 
 #----------------------------------------------------------------------------------------------------------------#
 #----------------------------------------------------------------------------------------------------------------#
-#----------------------------------------------------------------------------------------------------------------#
-#----------------------------------------------------------------------------------------------------------------#
-#----------------------------------------------------------------------------------------------------------------#
 
 def classify_spectrum(spectra, 
                       model, 
@@ -880,7 +988,6 @@ def classify_spectrum(spectra,
         fig2.savefig(figure_name + '_centroids',dpi=500)
     #----------------------------------------------------------------------------------------------------------------#
     return None
-
 
 def classify_SI(spectra, 
                 model, 
@@ -1105,8 +1212,8 @@ def classify_SI_back(spectra,
     - probability: boolean, optional (default=True)
     - normalize: boolean, optional (default=True)
     - background: tuple, optional (default=None)
-    - back_point: point of the background. 
     - crop: tuple, optional (default=None)
+    - back_point: point of the background. 
     - figure_name: string, optional (default=None)
 
     Returns:
