@@ -297,33 +297,59 @@ def export_svg(obj, filename):
 #-------------------------------------------------------------------------------------------------------------------#
 
 #-------------------------------------------------------------------------------------------------------------------#
-def get_cmap(labels, noise = 'grey',paleta = 'Spectral'):
-    '''
-    Devuelve un mapa de colores para representar los etiquetas resultantes de un algoritmo de clustering.
+def select_palettes(paleta, num_labels):
+    max_colors_spectral = 11
+    if paleta == 'Spectral' and num_labels > max_colors_spectral:
+        return 'Viridis'
+    return paleta
+#-------------------------------------------------------------------------------------------------------------------#
 
-    Parameters:
-        labels (np.array): Etiquetas resultantes de un modelo de clustering.
-        noise (str): Color a utilizar para los puntos ruidosos. Valores permitidos: 'grey', 'magenta'.
-        paleta (str): Nombre de la paleta de colores a utilizar como base.
-
-    Returns:
-        cmap_db (list): Lista de colores para utilizar en Holoviews en las etiquetas.
-        limis (tuple): Límites para la barra de colores en la imagen de Holoviews para las etiquetas.
+#-------------------------------------------------------------------------------------------------------------------#
+def get_cmap(labels, noise='grey', paleta='Spectral'):
     '''
-    if noise not in ['grey','magenta']: noise = 'grey'
-    #The first thing, setting up the color for the noise datapoints
-    if -2 in np.unique(labels):
+    This method gets the labels introduced resolved by clustering algorithm
+    and devices a colormap suitable to correctly represent the label-map
+    - Parameters-
+    labels : np.array. Labels from a fitted clustering model
+    paleta : str(). Name of the colormap to be used as base
+    - Return -
+    cmap_db : list. Colormap list to be used by Holoviews in the label-maps
+    limis   : tuple. Limits for the colorbar in the Holoviews Image for the label-map
+    '''
+    if noise not in ['grey', 'magenta']: noise = 'grey'
+    
+    if -1 in np.unique(labels):
         if noise == 'grey': cmap_db = ['lightgrey']
         else: cmap_db = ['magenta']
-        #The rest of the colormap - notive we have -1 - noisy datapoints
+        num_labels = np.unique(labels).size - 1  # -1 to exclude noise label
+        paleta = select_palettes(paleta, num_labels)
         if np.unique(labels).size <= 12 and np.unique(labels).size >= 3:
-            cmap_db.extend(list(palettes.all_palettes[paleta][np.unique(labels).size-1]))
+            cmap_db.extend(list(palettes.all_palettes[paleta][np.unique(labels).size - 1]))
         elif np.unique(labels).size == 2:
             cmap_db.append('dimgrey')
         elif np.unique(labels).size == 3:
             cmap_db.append('navy')
             cmap_db.append('limegreen')
-        elif np.max(labels) >= 13:
+        elif np.max(labels) >= 12:
+            pal = list(palettes.all_palettes['Turbo'][256])
+            if len(np.unique(labels)) > 256:
+                raise Exception('Too many labels.. check if the clustering is well done')
+            else:
+                nlabs = len(np.unique(labels))
+                cmap_db = [el[0] for el in np.array_split(pal, nlabs)]
+        else:
+            cmap_db.append('indigo')
+            cmap_db.extend(list(palettes.all_palettes[paleta][11]))
+        limis = (-1.5, len(cmap_db) - 1.5)
+    else:
+        cmap_db = []
+        num_labels = np.unique(labels).size
+        paleta = select_palettes(paleta, num_labels)
+        if np.unique(labels).size <= 11 and np.unique(labels).size > 2:
+            cmap_db.extend(list(palettes.all_palettes[paleta][np.unique(labels).size]))
+        elif np.unique(labels).size == 2:
+            cmap_db.extend(['lightgrey', 'dimgrey'])
+        elif np.max(labels) >= 12:
             #It is unlikely that this would go beyond 256
             pal = list(palettes.all_palettes['Turbo'][256])
             if len(np.unique(labels)) > 256:
@@ -332,30 +358,9 @@ def get_cmap(labels, noise = 'grey',paleta = 'Spectral'):
                 nlabs = len(np.unique(labels))
                 cmap_db = [el[0] for el in np.array_split(pal,nlabs)]
         else:
-        # New version - much more stable
             cmap_db.append('indigo')
             cmap_db.extend(list(palettes.all_palettes[paleta][11]))
-        #Lastthing - limits
-        limis = (-1.5,len(cmap_db)-1.5)
-    else:
-        cmap_db = []
-        if np.unique(labels).size <= 11 and np.unique(labels).size > 2:
-            cmap_db.extend(list(palettes.all_palettes[paleta][np.unique(labels).size]))
-        elif np.unique(labels).size == 2:
-            cmap_db.extend(['lightgrey','dimgrey'])
-        elif np.max(labels) >= 12:
-            #It is unlikely that this would go beyond 256
-            pal = list(palettes.all_palettes['Turbo'][256])
-            if len(np.unique(labels)) > 256:
-                raise Exception('Too many labels, check if the clustering is well done.')
-            else:
-                nlabs = len(np.unique(labels))
-                cmap_db = [el[0] for el in np.array_split(pal,nlabs)]
-        else:
-            # New version - much more stable
-            cmap_db.append('indigo')
-            cmap_db.extend(list(palettes.all_palettes[paleta][11]))
-        limis = (-0.5,len(cmap_db)-0.5)
-    assert len(cmap_db) == np.unique(labels).size, print(len(cmap_db),np.unique(labels).size)
-    return cmap_db,limis
+        limis = (-0.5, len(cmap_db) - 0.5)
+    assert len(cmap_db) == np.unique(labels).size, print(len(cmap_db), np.unique(labels).size)
+    return cmap_db, limis
 #-------------------------------------------------------------------------------------------------------------------#
