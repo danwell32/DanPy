@@ -1,10 +1,14 @@
 ### Funciones de este modulo: 
 # def kmeans_clustering(matrix, n_cluster, norma='l2')
 # def train_and_test_svm_model(samples, labels, kernel, C=1., gamma=None, coef0=None, test_size=0.35, cv=10, probability=True)
-# def reduc_energy_resol(spectra, a, b, new_resol, old_resol)
+# def reduce_energy_resolution(spectra, original_axis, new_axis)
 # def identify_eels(spectra, model, probability=False, normalize=True, background=(620.,680.),crop=(615.,685.), back_point=(0,0), figure_name = None)
 # def identify_eels_v2(spectra, model, probability=False, normalize=True, background=(620.,680.),crop=(615.,685.), back_point=(0,0), figure_name = None)
 # def optimize_SVM_clasifiers(parameters,samples,labels,test_size=0.35,file_save=None)
+# def displace_spectra(x, num_displacements, samples_per_displacement, max_displacement)
+# def create_displaced_dataset(X, Y, num_displacements=100, samples_per_displacement=10, max_displacement=10)
+# def classify_SI(spectra,model, ref_spectra, probability=True, normalize=True, background=None, crop=None,figure_name=None)
+# def classify_SI_back(spectra, model, ref_spectra, probability=True, normalize=True, background=None, crop=None, back_point=(0,0),figure_name=None):
 
 # Modulos importados: 
 import numpy as np
@@ -23,7 +27,6 @@ from sklearn.svm import SVC
 from sklearn.metrics import accuracy_score
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.decomposition import PCA, NMF
-
 
 #Matplotlib: 
 import matplotlib.pyplot as plt
@@ -99,7 +102,9 @@ def translation(inputs, translation):
         inputs_final = inputs[:, 0:n_features-trans]
         initial = inputs[:, 0:trans]
         return np.concatenate((initial, inputs_final), axis=1)
+#-------------------------------------------------------------------------------------------------------------------#
 
+#-------------------------------------------------------------------------------------------------------------------#
 def displace_spectra(x, num_displacements, samples_per_displacement, max_displacement):
     """
     Displace spectra by applying translations on the input array.
@@ -175,10 +180,8 @@ def create_displaced_dataset(X, Y, num_displacements=100, samples_per_displaceme
 
     X_ = np.concatenate((x, x_dis), axis=0)
     labels_ = np.concatenate((y, labels_dis), axis=0)
-
     return X_, labels_
 #-------------------------------------------------------------------------------------------------------------------#
-
 
 #-------------------------------------------------------------------------------------------------------------------#
 def train_and_test_svm_model(samples, labels, kernel, C=1., gamma=None, coef0=None, test_size=0.35, cv=10, probability=True):
@@ -778,8 +781,6 @@ def identify_eels_v2(spectra, model, ref_spectra, probability=False, normalize=T
 #-------------------------------------------------------------------------------------------------------------------#
 
 #----------------------------------------------------------------------------------------------------------------#
-#----------------------------------------------------------------------------------------------------------------#
-
 def classify_spectrum(spectra, 
                       model, 
                       ref_spectra, 
@@ -988,7 +989,9 @@ def classify_spectrum(spectra,
         fig2.savefig(figure_name + '_centroids',dpi=500)
     #----------------------------------------------------------------------------------------------------------------#
     return None
+#----------------------------------------------------------------------------------------------------------------#
 
+#----------------------------------------------------------------------------------------------------------------#
 def classify_SI(spectra, 
                 model, 
                 ref_spectra, 
@@ -1191,7 +1194,9 @@ def classify_SI(spectra,
         fig2.savefig(figure_name + '_centroids',dpi=500)
     #----------------------------------------------------------------------------------------------------------------#
     return None
+#----------------------------------------------------------------------------------------------------------------#
 
+#----------------------------------------------------------------------------------------------------------------#
 def classify_SI_back(spectra, 
                      model, 
                      ref_spectra, 
