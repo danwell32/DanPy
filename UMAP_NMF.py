@@ -323,31 +323,51 @@ def get_cmap(labels, noise='grey', paleta='Spectral'):
     - Return -
     cmap_db : list. Colormap list to be used by Holoviews in the label-maps
     limis   : tuple. Limits for the colorbar in the Holoviews Image for the label-map
-                    
     '''
-    unique_labels = np.unique(labels)
+    cmap_db = []
+    num_labels = np.unique(labels).size 
+    mask = 0
     
-    # Checking if there is only a -1 cluster in your labels
-    if set(unique_labels) == {-1}:
-        # Handle this case as you see fit
-        print("Only noise cluster detected")
-        # Assuming you might want to return a single color palette and limit
-        return ['lightgrey'], (-0.5, 0.5)
+    # Check if only -1 and -2 are present
+    if set(np.unique(labels)) == {-1}:
+        if noise == 'grey':
+            cmap_db.append('lightgrey')
+        else:
+            cmap_db.append('magenta')
+        limis = (-0.5, 0.5)
+        print('Solo -1')
+        return cmap_db, limis
+    else:
+        pass
     
-    if noise not in ['grey', 'magenta']: noise = 'grey'
+    # Add 'black' color for mask and 'grey' or 'magenta' for noise
+    if -2 in np.unique(labels):
+        cmap_db.append('black')
+        num_labels -= 1
+        mask -= 1
+        print('Hay fondo',num_labels)
+    else:
+        pass
     
     if -1 in np.unique(labels):
-        if noise == 'grey': cmap_db = ['lightgrey']
-        else: cmap_db = ['magenta']
-        num_labels = np.unique(labels).size - 1  # -1 to exclude noise label
-        paleta = select_palettes(paleta, num_labels)
-        if np.unique(labels).size <= 12 and np.unique(labels).size > 3:
-            cmap_db.extend(list(palettes.all_palettes[paleta][np.unique(labels).size - 1]))
-        elif np.unique(labels).size == 2:
-            cmap_db.append('dimgrey')
-        elif np.unique(labels).size == 3:
+        num_labels -= 1 
+        print('Hay ruido',num_labels)
+        if noise == 'grey': cmap_db.append('lightgrey')
+        else: cmap_db.append('magenta')
+        paleta = select_palettes(paleta, num_labels)     
+        
+        if num_labels <= 12 and num_labels > 3:
+            cmap_db.extend(list(palettes.all_palettes[paleta][num_labels]))
+            
+        elif num_labels == 2:
+            cmap_db.append('red')
+            cmap_db.append('navy')
+
+        elif num_labels == 3:
+            cmap_db.append('red')
             cmap_db.append('navy')
             cmap_db.append('limegreen')
+
         elif np.max(labels) > 12:
             pal = list(palettes.all_palettes['Turbo'][256])
             if len(np.unique(labels)) > 256:
@@ -357,17 +377,18 @@ def get_cmap(labels, noise='grey', paleta='Spectral'):
                 cmap_db = [el[0] for el in np.array_split(pal, nlabs)]
         else:
             cmap_db.append('indigo')
-            cmap_db.extend(list(palettes.all_palettes[paleta][11]))
-        limis = (-1.5, len(cmap_db) - 1.5)
+            
+        limis = (-1.5 + mask, len(cmap_db) - 1.5 + mask)
     else:
         cmap_db = []
         num_labels = np.unique(labels).size
+        print('Ni fondo, ni ruido',num_labels)
         paleta = select_palettes(paleta, num_labels)
-        if np.unique(labels).size <= 12 and np.unique(labels).size > 2:
+        if np.unique(labels).size <= 11 and np.unique(labels).size > 2:
             cmap_db.extend(list(palettes.all_palettes[paleta][np.unique(labels).size]))
         elif np.unique(labels).size == 2:
             cmap_db.extend(['lightgrey', 'dimgrey'])
-        elif np.max(labels) > 12:
+        elif np.max(labels) >= 12:
             #It is unlikely that this would go beyond 256
             pal = list(palettes.all_palettes['Turbo'][256])
             if len(np.unique(labels)) > 256:
@@ -377,10 +398,10 @@ def get_cmap(labels, noise='grey', paleta='Spectral'):
                 cmap_db = [el[0] for el in np.array_split(pal,nlabs)]
         else:
             cmap_db.append('indigo')
-            cmap_db.extend(list(palettes.all_palettes[paleta][11]))
         limis = (-0.5, len(cmap_db) - 0.5)
 
-    assert len(cmap_db) == np.unique(labels).size, print(len(cmap_db), np.unique(labels).size)
+    num_labels = np.unique(labels).size 
+    assert len(cmap_db) == num_labels, f"Number of colors in palette ({len(cmap_db)}) does not match number of labels ({num_labels})"
 
     return cmap_db, limis
 #-------------------------------------------------------------------------------------------------------------------#
@@ -415,15 +436,15 @@ def hdbscan_for_umap(umap_dict, min_dis, n_neigh, spectrum_image, eje = None, ma
     
     dpi = 150
     
-    if type(spectrum_image) == hs.signals.EELSSpectrum:
-        if eje is None: eje = spectrum_image.axes_manager[-1].axis
-        else: pass
+    if isinstance(spectrum_image, hs.signals.EELSSpectrum):
+        if eje is None: 
+            eje = spectrum_image.axes_manager[-1].axis
         spectrum_image = spectrum_image.data
-    elif type(spectrum_image) == np.array:
+    elif isinstance(spectrum_image, np.ndarray):
         pass
     else:
-        raise 'La imagen de espectros no ha sido proporcionado en el formato adecuado.'
-    
+        raise TypeError('The spectrum image has not been provided in the appropriate format.')
+        
     while True:
         #VALORES DE UMAP:
         inp = input("Do you want to change the UMAP values? (y/n):")
@@ -455,18 +476,17 @@ def hdbscan_for_umap(umap_dict, min_dis, n_neigh, spectrum_image, eje = None, ma
                                     min_samples=min_samp)
         clusterer.fit(umap_dict['udata_{}_{}'.format(min_dis,n_neigh)].embedding_)
         print('Cluster values:',np.unique(clusterer.labels_))
-        
+        ##-----------------------------HDBSCAN----------------------------------##
+
         if mask is not None:
-            new_value = -2 
+            new_value = -2
             clustering = np.full_like(spectrum_image[:,:,0], new_value)
-            clustering = clusterer.labels_ 
+            clustering[mask] = clusterer.labels_
         else:
             clustering = clusterer.labels_.reshape(spectrum_image.shape[0],spectrum_image.shape[1])
-        ##-----------------------------HDBSCAN----------------------------------##
 
         ##-----------------------------Plots------------------------------------##
         cmap_db, limis = get_cmap(clustering)
-        
         labels_map = hv.Image(\
             xr.Dataset({'Labels':( ['y','x'],clustering.reshape(spectrum_image.shape[0],spectrum_image.shape[1]))},\
             coords = {'x':np.arange(spectrum_image.shape[1]),'y':np.arange(spectrum_image.shape[0])}),\
@@ -508,13 +528,12 @@ def hdbscan_for_umap(umap_dict, min_dis, n_neigh, spectrum_image, eje = None, ma
                                                           umap_dict['udata_{}_{}'.format(min_dis,n_neigh)].embedding_[clusterer.labels_ != -1])
                 closest_cluster = clusterer.labels_[np.where(clusterer.labels_ != -1)[0][distances[0]]]
                 clusterer.labels_[i] = closest_cluster
-            print(np.unique(clusterer.labels_))
+            print('Outliers assigned:',np.unique(clusterer.labels_))
         
             if mask is not None:
-                new_value = -2 
+                new_value = 0
                 clustering = np.full_like(spectrum_image[:,:,0], new_value)
-                clustering[mask] = clusterer.labels_
-
+                clustering[mask] = clusterer.labels_ +1
             else:
                 clustering = clusterer.labels_.reshape(spectrum_image.shape[0],spectrum_image.shape[1])
 
@@ -527,8 +546,8 @@ def hdbscan_for_umap(umap_dict, min_dis, n_neigh, spectrum_image, eje = None, ma
                 toolbar = None,\
                 invert_yaxis = True,
                 aspect = 'equal',\
-                frame_height = 600,\
-                frame_width = 300,\
+                frame_height = 300,\
+                frame_width = 600,\
                 cmap = cmap_db,\
                 clim = limis,\
                 title = 'HDBSCAN map')      
@@ -557,6 +576,7 @@ def hdbscan_for_umap(umap_dict, min_dis, n_neigh, spectrum_image, eje = None, ma
             
             if mask is not None:
                 cmap_db = cmap_db[1:]
+                
             embed_mask = hv.Points(zers,vdims = ['color'])\
             .opts(frame_width = 650,frame_height = 300,toolbar=None,fill_alpha = 0.5,bgcolor = 'black',\
                   line_alpha = 0,line_width = 0.15,size = 2.5,xaxis = None,yaxis = None,\
@@ -575,13 +595,14 @@ def hdbscan_for_umap(umap_dict, min_dis, n_neigh, spectrum_image, eje = None, ma
     #--------------------------------------------------------------------------------------------------------------#    
     cmap_db, _ = get_cmap(clustering)
     cmap_ = mcolors.ListedColormap(cmap_db)
+
     grouping_labels = np.array(clustering).reshape(spectrum_image.shape[0],spectrum_image.shape[1])
     a = np.unique(grouping_labels)
     #--------------------------------------------------------------------------------------------------------------#
     #--------------------------------------------------------------------------------------------------------------#
     labels_centros_norm = []
     labels_centros = []
-    for i in range(1,len(a)):
+    for i in range(0,len(a)):
         labels_centros_norm.append(normalize(spectrum_image[grouping_labels==a[i]].mean(axis=0).reshape(1,-1),norm='max',return_norm=True))
         labels_centros.append(spectrum_image[grouping_labels==a[i]].mean(axis=0))
     #--------------------------------------------------------------------------------------------------------------#
@@ -603,22 +624,29 @@ def hdbscan_for_umap(umap_dict, min_dis, n_neigh, spectrum_image, eje = None, ma
     
     fig1 = plt.figure(dpi=dpi)
     for i in range(0,len(labels_centros)):
-        plt.plot(eje,labels_centros[i],label=str(a[i+1]),color = mcolors.to_rgba(cmap_db[i+1]),linewidth=0.8,linestyle=':')
+        plt.plot(eje,labels_centros[i],label=str(a[i]),color = mcolors.to_rgba(cmap_db[i]),linewidth=0.8,linestyle=':')
     plt.xlabel('Energy axis')
     plt.ylabel('Intensity')
-    plt.title('Normalized Centroids')
+    plt.title('Centroids')
+    plt.xlim(eje[0],eje[-1])
     plt.legend(fontsize=7)
     plt.tight_layout()
     
     fig2 = plt.figure(dpi=dpi)
     for i in range(0,len(labels_centros_norm)):
-        plt.plot(eje,labels_centros_norm[i][0][0],label=str(a[i+1]),color = mcolors.to_rgba(cmap_db[i+1]),linewidth=0.8)
+        plt.plot(eje,labels_centros_norm[i][0][0],label=str(a[i]),color = mcolors.to_rgba(cmap_db[i]),linewidth=0.8)
     plt.xlabel('Energy axis')
-    plt.ylabel('Intensity')
+    plt.ylabel('Normalized Intensity')
     plt.title('Normalized Centroids')
+    plt.xlim(eje[0],eje[-1])
+    plt.ylim(-0.1,1.05)
     plt.legend(fontsize=7)
     plt.tight_layout()
     
+    if mask is not None:
+        cmap_db = cmap_db[1:]
+        cmap_ = mcolors.ListedColormap(cmap_db)
+
     fig3 = plt.figure(dpi=dpi)
     plt.style.use("dark_background")
     plt.scatter(x, y, c=c, cmap=cmap_, alpha=0.5, s=.5)
@@ -635,10 +663,10 @@ def hdbscan_for_umap(umap_dict, min_dis, n_neigh, spectrum_image, eje = None, ma
         if inp.lower() == 'y':
             filename = input("Provide the name you want to save the images with:")
             if type(filename)==str:
-                fig.savefig(filename+'map')
-                fig1.savefig(filename+'centroids')
-                fig2.savefig(filename+'norm_centroids')
-                fig3.savefig(filename+'embbeding')
+                fig.savefig(filename+'_map')
+                fig1.savefig(filename+'_centroids')
+                fig2.savefig(filename+'_norm_centroids')
+                fig3.savefig(filename+'_embbeding')
                 print('Figuras guardadas')
                 return grouping_labels
             else: 
@@ -649,9 +677,10 @@ def hdbscan_for_umap(umap_dict, min_dis, n_neigh, spectrum_image, eje = None, ma
             print('Figures not saved')
             return (fig,fig1,fig2,fig3), grouping_labels
     else: 
-        fig.savefig(filename+'map')
-        fig1.savefig(filename+'centroids')
-        fig2.savefig(filename+'norm_centroids')
-        fig3.savefig(filename+'embbeding')
+        fig.savefig(filename+'_map')
+        fig1.savefig(filename+'_centroids')
+        fig2.savefig(filename+'_norm_centroids')
+        fig3.savefig(filename+'_embbeding')
         print('Figuras guardadas')
         return grouping_labels
+    
