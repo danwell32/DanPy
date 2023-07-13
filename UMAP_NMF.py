@@ -10,6 +10,8 @@
 import numpy as np
 from time import time
 import copy as cp
+import hyperspy.api as hs
+
 
 #Xarray:
 import xarray as xr
