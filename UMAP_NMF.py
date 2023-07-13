@@ -466,7 +466,7 @@ def hdbscan_for_umap(umap_dict, min_dis, n_neigh, spectrum_image, eje = None, ma
                     clusterer.fit(umap_dict['udata_{}_{}'.format(min_dis,n_neigh)].embedding_)
                     outliers = np.count_nonzero(clusterer.labels_ == -1)
                     total_points = clusterer.labels_.size
-                    print(i,j,len(np.unique(clusterer.labels_)),'Percentage of outliers: {:.2f} %'.format((outliers/total_points)*100))
+                    print(i,'-',j,'-',len(np.unique(clusterer.labels_)),'Percentage of outliers: {:.2f} %'.format((outliers/total_points)*100))
         else:
             print("HDBSCAN values not evaluated.")
         
